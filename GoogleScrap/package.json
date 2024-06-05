@@ -4,13 +4,17 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index"
+    "start_known": "node known_index",
+    "start_anypdf": "node anypdf_index",
+    "start_onepage": "node onepage_index"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "axios": "^1.7.2",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
     "puppeteer": "^22.10.0"
   }
 }
