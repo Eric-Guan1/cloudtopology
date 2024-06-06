@@ -99,10 +99,17 @@ const pdf = require('pdf-parse');
   }
 
   for (const result of allPdfLinks) {
+    const filename = path.basename(result.link);
+    const filepath = path.join(networkPdfsDir, filename);
+
+    // Skip downloading if the file already exists
+    if (fs.existsSync(filepath)) {
+      console.log(`Skipped: ${filename} (already downloaded)`);
+      continue;
+    }
+
     const isSinglePage = await checkIfSinglePagePdf(result.link);
     if (isSinglePage) {
-      const filename = path.basename(result.link);
-      const filepath = path.join(networkPdfsDir, filename);
       try {
         await downloadPdf(result.link, filepath);
         console.log(`Downloaded: ${filename}`);
