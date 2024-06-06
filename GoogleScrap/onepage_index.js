@@ -9,15 +9,13 @@ const pdf = require('pdf-parse');
   const page = await browser.newPage();
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
-  const searchGoogle = async () => {
+  const searchGoogle = async (searchTerm) => {
     try {
-      const searchTerm = 'global network maps filetype:pdf';
       const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchTerm)}`;
       await page.goto(searchUrl, { waitUntil: 'networkidle2' });
 
       const results = [];
 
-      // Function to extract PDF links from the current page
       const extractResults = async () => {
         const searchResults = await page.evaluate(() => {
           const items = document.querySelectorAll('div.g');
@@ -38,24 +36,28 @@ const pdf = require('pdf-parse');
         results.push(...searchResults);
       };
 
-      // Extract results from the first page
       await extractResults();
 
-      // Navigate to subsequent pages and extract results
       let nextPageExists = true;
-      while (results.length < 40 && nextPageExists) {
+      let pageCounter = 1;
+      while (results.length < 50 && nextPageExists && pageCounter <= 10) {
         const nextPageButton = await page.$('a#pnnext');
-        if (nextPageButton) {
-          await nextPageButton.click();
-          await page.waitForSelector('h3', { waitUntil: 'networkidle2' });
+        //const moreResultsButton = await page.$('h3 div.GNJvt.ipz2Oe span.RVQdVd');
+        if (nextPageButton || moreResultsButton) {
+          if (nextPageButton) {
+            await nextPageButton.click();
+          } else if (moreResultsButton) {
+            await moreResultsButton.click();
+          }
+          await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 2000)); // Adding random delay to avoid bot detection
           await extractResults();
+          pageCounter++;
         } else {
           nextPageExists = false;
         }
       }
 
-      // Limit the results to the top 40
-      return results.slice(0, 40);
+      return results;
     } catch (error) {
       console.error('Error during search:', error);
       return [];
@@ -90,7 +92,9 @@ const pdf = require('pdf-parse');
     });
   };
 
-  const allPdfLinks = await searchGoogle();
+  const searchTerm = 'global network maps filetype:pdf';
+  const allPdfLinks = await searchGoogle(searchTerm);
+
   console.log('PDF links:', allPdfLinks);
 
   const networkPdfsDir = path.join(__dirname, 'scraped_onepage_pdfs');
@@ -98,7 +102,9 @@ const pdf = require('pdf-parse');
     fs.mkdirSync(networkPdfsDir);
   }
 
-  for (const result of allPdfLinks) {
+  let singlePagePdfCount = 0;
+  const uniquePdfLinks = Array.from(new Set(allPdfLinks.map(link => link.link))).map(link => allPdfLinks.find(l => l.link === link));
+  for (const result of uniquePdfLinks) {
     const filename = path.basename(result.link);
     const filepath = path.join(networkPdfsDir, filename);
 
@@ -113,6 +119,8 @@ const pdf = require('pdf-parse');
       try {
         await downloadPdf(result.link, filepath);
         console.log(`Downloaded: ${filename}`);
+        singlePagePdfCount++;
+        if (singlePagePdfCount >= 20) break;
       } catch (error) {
         console.error(`Failed to download ${filename}:`, error);
       }
@@ -121,5 +129,6 @@ const pdf = require('pdf-parse');
     }
   }
 
+  console.log(`Total single-page PDFs downloaded: ${singlePagePdfCount}`);
   await browser.close();
 })();
