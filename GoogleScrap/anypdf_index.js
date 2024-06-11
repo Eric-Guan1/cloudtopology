@@ -8,36 +8,55 @@ const axios = require('axios');
   const page = await browser.newPage();
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
 
-  const searchGoogle = async () => {
+  const searchGoogle = async (searchTerm) => {
     try {
-      const searchTerm = 'global network maps filetype:pdf';
       const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchTerm)}`;
       await page.goto(searchUrl, { waitUntil: 'networkidle2' });
-      await page.waitForSelector('h3');
 
-      const results = await page.evaluate(() => {
-        const searchResults = [];
-        const items = document.querySelectorAll('div.g');
-        let count = 0;
+      const results = [];
 
-        items.forEach((item) => {
-          if (count < 10) {  // Limit to the top 10 results
+      const extractResults = async () => {
+        const searchResults = await page.evaluate(() => {
+          const items = document.querySelectorAll('div.g');
+          const links = [];
+          items.forEach((item) => {
             const linkElement = item.querySelector('a');
             if (linkElement && linkElement.href.endsWith('.pdf')) {
               const titleElement = item.querySelector('h3');
               if (titleElement) {
                 const title = titleElement.innerText;
                 const link = linkElement.href;
-                searchResults.push({ title, link });
+                links.push({ title, link });
               }
             }
-            count++;
-          }
+          });
+          return links;
         });
-        return searchResults;
-      });
+        results.push(...searchResults);
+      };
 
-      return results;
+      await extractResults();
+
+      let nextPageExists = true;
+      let pageCounter = 1;
+      while (results.length < 300 && nextPageExists) {
+        const nextPageButton = await page.$('a#pnnext');
+        const moreResultsButton = await page.$('h3 div.GNJvt.ipz2Oe span.RVQdVd');
+        if (nextPageButton || moreResultsButton) {
+          if (nextPageButton) {
+            await nextPageButton.click();
+          } else if (moreResultsButton) {
+            await moreResultsButton.click();
+          }
+          await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 2000)); // Random delay to avoid bot detection
+          await extractResults();
+          pageCounter++;
+        } else {
+          nextPageExists = false;
+        }
+      }
+
+      return results.slice(0, 300);
     } catch (error) {
       console.error('Error during search:', error);
       return [];
@@ -61,7 +80,9 @@ const axios = require('axios');
     });
   };
 
-  const allPdfLinks = await searchGoogle();
+  const searchTerm = 'points of presence network map filetype:pdf';
+  const allPdfLinks = await searchGoogle(searchTerm);
+
   console.log('PDF links:', allPdfLinks);
 
   const networkPdfsDir = path.join(__dirname, 'scraped_network_pdfs');
@@ -69,9 +90,16 @@ const axios = require('axios');
     fs.mkdirSync(networkPdfsDir);
   }
 
-  for (const result of allPdfLinks) {
+  const uniquePdfLinks = Array.from(new Set(allPdfLinks.map(link => link.link))).map(link => allPdfLinks.find(l => l.link === link));
+  for (const result of uniquePdfLinks) {
     const filename = path.basename(result.link);
     const filepath = path.join(networkPdfsDir, filename);
+
+    if (fs.existsSync(filepath)) {
+      console.log(`Skipped: ${filename} (already downloaded)`);
+      continue;
+    }
+
     try {
       await downloadPdf(result.link, filepath);
       console.log(`Downloaded: ${filename}`);

@@ -42,14 +42,14 @@ const pdf = require('pdf-parse');
       let pageCounter = 1;
       while (results.length < 50 && nextPageExists && pageCounter <= 10) {
         const nextPageButton = await page.$('a#pnnext');
-        //const moreResultsButton = await page.$('h3 div.GNJvt.ipz2Oe span.RVQdVd');
+        const moreResultsButton = await page.$('h3 div.GNJvt.ipz2Oe span.RVQdVd');
         if (nextPageButton || moreResultsButton) {
           if (nextPageButton) {
             await nextPageButton.click();
           } else if (moreResultsButton) {
             await moreResultsButton.click();
           }
-          await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 2000)); // Adding random delay to avoid bot detection
+          await new Promise(resolve => setTimeout(resolve, Math.random() * 5000 + 2000)); //added random delay to avoid bot detection
           await extractResults();
           pageCounter++;
         } else {
@@ -92,7 +92,7 @@ const pdf = require('pdf-parse');
     });
   };
 
-  const searchTerm = 'global network maps filetype:pdf';
+  const searchTerm = 'global network infrastructure maps filetype:pdf';
   const allPdfLinks = await searchGoogle(searchTerm);
 
   console.log('PDF links:', allPdfLinks);
@@ -108,7 +108,6 @@ const pdf = require('pdf-parse');
     const filename = path.basename(result.link);
     const filepath = path.join(networkPdfsDir, filename);
 
-    // Skip downloading if the file already exists
     if (fs.existsSync(filepath)) {
       console.log(`Skipped: ${filename} (already downloaded)`);
       continue;
